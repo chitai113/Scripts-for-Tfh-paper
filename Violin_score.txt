@@ -1,0 +1,105 @@
+library(Seurat)
+library(SeuratObject)
+library(dplyr)
+library(patchwork)
+library(uwot)
+library(ggplot2)
+library(ggpubr)
+library(pheatmap)
+library(data.table)
+library(enrichR)
+library(tidyverse)
+library(limma)
+
+#########################################################################
+######## check the total cells spleen score and PP score ################
+########################################################################
+DefaultAssay(Tfhdat) <- "RNA"
+pc <- WhichCells(Tfhdat, expression = RORC>0) #& BCL6>0)
+Tfhdat$Tfh_17<- ifelse(colnames(Tfhdat) %in% pc, "Tfh_17", "other")
+Idents(Tfhdat) <- "Tfh_17"
+Condition_Tfh_17<- paste(Tfhdat$Condition, "_",Tfhdat$Tfh_17)
+names(Condition_Tfh_17) <- colnames(x = Tfhdat)
+Tfhdat <- AddMetaData(
+  object = Tfhdat,
+  metadata = Condition_Tfh_17,
+  col.name = 'Condition_Tfh_17')
+
+Idents(Tfhdat)<-"Condition_Tfh_17"
+table(Tfhdat$Condition_Tfh_17)
+PP2 <- fread("PP2-1.csv")
+PP2<- PP2[,3]
+PP2
+
+
+Tfhdat<- AddModuleScore(
+  object = Tfhdat,
+  features = PP2,
+  name = 'PPTfhhuman_score')
+
+
+
+viodat2 <- data.frame(Condition =Tfhdat$Condition, PPTfhhuman_score=Tfhdat$PPTfhhuman_score1)
+
+compare_means(PPTfhhuman_score ~ Condition,  data = viodat2)
+my_comparisons <- list( c("RA","HC"))
+
+png(filename = "dr.wu PP2 signature gene in Total Tfh cell.png", width = 9, height = 6, res = 300,units = "in")
+p2 <- ggplot(viodat2, aes(x=Condition,y=PPTfhhuman_score, fill=Condition))+
+  geom_violin()+
+  scale_fill_manual(values = c("#56B4E9","#FF9999"))+
+  geom_boxplot(width=0.1,fill="white")+
+  stat_compare_means(comparisons = my_comparisons,label="p.signif")+
+  stat_compare_means(label.y = 3.0, label.x = 1.5)+
+  ylim(-1, 3)+
+  stat_summary(fun.data = fun_mean,geom = "text",vjust=-0.1)+
+  theme_classic()+labs(title = "Dr.wu PP-2 signature gene in total Tfh cell")+theme(axis.text = element_text(size = 25))+theme(axis.title = element_text(size = 25))+
+  theme(legend.text = element_text(size=25)) +theme(legend.title = element_text(size=25))
+p2
+dev.off()
+
+
+
+##total spleen
+SP17 <- fread("Th17_control.csv")
+SP17<- SP17[,2]
+SP17
+DefaultAssay(Tfhdat) <- "RNA"
+Tfhdat<-AddModuleScore(object = Tfhdat, features = SP17, name = "sTfh_score")
+head(Tfhdat)
+viodat3<-data.frame(Condition=Tfhdat$Condition, sTfh_score= Tfhdat$sTfh_score1)
+fun_mean<-function(x){return(data.frame(y=mean(x),label=round(mean(x,na.rm=T),3)))}
+
+compare_means(sTfh_score~Condition, data = viodat3)
+
+
+png(filename = "dr.wu Tfh17 control signature gene in Total Tfh cell.png", width = 9, height = 6, res = 300, units = "in")
+p1 <- ggplot(viodat3, aes(x=Condition,y=sTfh_score, fill=Condition))+
+  geom_violin()+
+  scale_fill_manual(values = c("#56B4E9","#FF9999"))+
+  geom_boxplot(width=0.1,fill="white")+
+  stat_compare_means(comparisons = my_comparisons,label="p.signif")+
+  stat_compare_means(label.y = 3.0, label.x = 1.5)+
+  ylim(-1, 3.0)+
+  stat_summary(fun.data = fun_mean,geom = "text",vjust=0.5)+
+  theme_classic()+
+  labs(title = "dr.wu Tfh17 control signature gene in Total Tfh cell.png")+theme(axis.text = element_text(size = 25))+theme(axis.title = element_text(size = 25))+
+  theme(legend.text = element_text(size=25))+theme(legend.title = element_text(size=25))  
+p1
+dev.off()
+
+p1
+
+##############################
+
+dat.Tfh_17 <- subset(Tfhdat, idents=c("HC _ Tfh_17","RA _ Tfh_17"))
+
+
+genenew.list<-c("ICOS","itgb7", "itga4", "ccr9", "rorc", "rora", "cmaf", "S1PR1", "cxcr4", "bub1", "cdc20", "cdc6", "cdk1", "ttk",  "tcf7",  "prdm1", "pdcd1", "SH2D1A", "SLAMF1", "Ly9", "CD84", "SLAMF6")
+genenew.list<-c(
+  "Rorc", "IL17a", "IL17f", "Maf", "itgb7", "Itga4",  "S1PR1", "CDC20", "CDC6", "CDK1", "TTK", "BUB1")
+genenew.list <- toupper(genenew.list)
+genenew.list
+png(filename = "Human_tfh_17.dr.wu.png", width = 9, height = 6, res = 300, units = "in")
+DotPlot(dat.Tfh_17,features = genenew.list, group.by="Condition")+theme(axis.text.x = element_text(angle = 90,vjust = 0.5,hjust = 1))
+dev.off()
